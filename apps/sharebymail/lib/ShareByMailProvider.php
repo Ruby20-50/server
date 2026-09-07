@@ -7,11 +7,13 @@
 
 namespace OCA\ShareByMail;
 
+use DateTime;
 use OC\Share20\DefaultShareProvider;
 use OC\Share20\Exception\InvalidShare;
 use OC\Share20\Share;
 use OCA\ShareByMail\Settings\SettingsManager;
 use OCP\Activity\IManager;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\Defaults;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -74,6 +76,7 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 		private IEventDispatcher $eventDispatcher,
 		private IShareManager $shareManager,
 		private IEmailValidator $emailValidator,
+		private ITimeFactory $timeFactory,
 	) {
 	}
 
@@ -243,7 +246,7 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 			->setValue('password', $qb->createNamedParameter($password))
 			->setValue('password_expiration_time', $qb->createNamedParameter($share->getPasswordExpirationTime(), IQueryBuilder::PARAM_DATETIME_MUTABLE))
 			->setValue('password_by_talk', $qb->createNamedParameter($share->getSendPasswordByTalk(), IQueryBuilder::PARAM_BOOL))
-			->setValue('stime', $qb->createNamedParameter(time()))
+			->setValue('stime', $qb->createNamedParameter(($share->getShareTime() ?? DateTime::createFromImmutable($this->timeFactory->now()))->getTimestamp()))
 			->setValue('hide_download', $qb->createNamedParameter((int)$share->getHideDownload(), IQueryBuilder::PARAM_INT))
 			->setValue('label', $qb->createNamedParameter($share->getLabel()))
 			->setValue('note', $qb->createNamedParameter($share->getNote()))
@@ -1219,7 +1222,11 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 	}
 
 	#[\Override]
-	public function getAllShares(): iterable {
+	public function getAllShares(bool $withUserGroup = false): iterable {
+		if ($withUserGroup) {
+			throw new RuntimeException('Unintended usage.');
+		}
+
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		$qb->select('*')
