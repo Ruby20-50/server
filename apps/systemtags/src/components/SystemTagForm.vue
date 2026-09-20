@@ -20,7 +20,8 @@
 				:placeholder="t('systemtags', 'Collaborative tags …')"
 				:fetch-tags="false"
 				:options="tags"
-				:multiple="false"
+				:limit="null"
+			    :multiple="false"
 				passthru>
 				<template #no-options>
 					{{ t('systemtags', 'No tags to select') }}
