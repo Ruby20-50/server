@@ -1077,11 +1077,13 @@ class Session implements IUserSession, Emitter {
 	 * login can still find the token that was renewed along with it.
 	 */
 	public function renewMagicSessionId(string $oldSessionId): void {
-		if (!isset($_COOKIE['nc_username'], $_COOKIE['nc_token'], $_COOKIE['nc_session_id'])
-			|| $_COOKIE['nc_session_id'] !== $oldSessionId) {
+		$request = Server::get(IRequest::class);
+		$username = $request->getCookie('nc_username');
+		$token = $request->getCookie('nc_token');
+		if ($username === null || $token === null || $request->getCookie('nc_session_id') !== $oldSessionId) {
 			return;
 		}
-		$this->setMagicInCookie($_COOKIE['nc_username'], $_COOKIE['nc_token']);
+		$this->setMagicInCookie($username, $token);
 	}
 
 	/**

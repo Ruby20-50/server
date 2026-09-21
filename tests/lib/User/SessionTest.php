@@ -1263,13 +1263,11 @@ class SessionTest extends \Test\TestCase {
 			->method('setMagicInCookie')
 			->with('u', 't');
 
-		$originalCookies = $_COOKIE;
-		$_COOKIE = $cookies;
-		try {
-			$this->userSession->renewMagicSessionId('old');
-		} finally {
-			$_COOKIE = $originalCookies;
-		}
+		$request = $this->createMock(IRequest::class);
+		$request->method('getCookie')->willReturnCallback(fn (string $key) => $cookies[$key] ?? null);
+		$this->overwriteService(IRequest::class, $request);
+
+		$this->userSession->renewMagicSessionId('old');
 	}
 
 	public function testTryBasicAuthLoginValid(): void {
