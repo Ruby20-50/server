@@ -1546,6 +1546,7 @@ return array(
     'OC\\Core\\Command\\Preview\\ResetRenderedTexts' => $baseDir . '/core/Command/Preview/ResetRenderedTexts.php',
     'OC\\Core\\Command\\Router\\ListRoutes' => $baseDir . '/core/Command/Router/ListRoutes.php',
     'OC\\Core\\Command\\Router\\MatchRoute' => $baseDir . '/core/Command/Router/MatchRoute.php',
+    'OC\\Core\\Command\\Search\\ProvidersCommand' => $baseDir . '/core/Command/Search/ProvidersCommand.php',
     'OC\\Core\\Command\\Search\\QueryCommand' => $baseDir . '/core/Command/Search/QueryCommand.php',
     'OC\\Core\\Command\\Security\\BruteforceAttempts' => $baseDir . '/core/Command/Security/BruteforceAttempts.php',
     'OC\\Core\\Command\\Security\\BruteforceResetAttempts' => $baseDir . '/core/Command/Security/BruteforceResetAttempts.php',
