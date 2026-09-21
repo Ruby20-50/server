@@ -977,17 +977,6 @@ class Session implements IUserSession, Emitter {
 	 * @param IUser $user
 	 */
 	public function createRememberMeToken(IUser $user) {
-		// The cookie outlives the session lifetime, so its token must not be
-		// cleaned up as a short-lived one.
-		try {
-			$sessionToken = $this->tokenProvider->getToken($this->session->getId());
-			if ($sessionToken instanceof PublicKeyToken && $sessionToken->getRemember() !== IToken::REMEMBER) {
-				$sessionToken->setRemember(IToken::REMEMBER);
-				$this->tokenProvider->updateToken($sessionToken);
-			}
-		} catch (InvalidTokenException|SessionNotAvailableException) {
-		}
-
 		$token = $this->random->generate(32);
 		$this->config->setUserValue($user->getUID(), 'login_token', $token, (string)$this->timeFactory->getTime());
 		$this->setMagicInCookie($user->getUID(), $token);
