@@ -1080,7 +1080,8 @@ class Session implements IUserSession, Emitter {
 		$request = Server::get(IRequest::class);
 		$username = $request->getCookie('nc_username');
 		$token = $request->getCookie('nc_token');
-		if ($username === null || $token === null || $request->getCookie('nc_session_id') !== $oldSessionId) {
+		$sessionId = $request->getCookie('nc_session_id');
+		if ($username === null || $token === null || $sessionId !== $oldSessionId) {
 			return;
 		}
 		$this->setMagicInCookie($username, $token);
