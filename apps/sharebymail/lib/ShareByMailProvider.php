@@ -39,6 +39,7 @@ use OCP\Share\IShareProviderWithNotification;
 use OCP\User\Exceptions\UserNotFoundException;
 use OCP\Util;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 
 /**
  * Class ShareByMail
@@ -100,7 +101,7 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 		$password = $share->getPassword();
 		if ($this->shareManager->shareApiLinkEnforcePassword() && $password === null) {
 			$password = $this->autoGeneratePassword($share);
-			$share->setPassword($this->hasher->hash($password));
+			$share->setPasswordHash($this->hasher->hash($password));
 		}
 
 		$shareId = $this->createMailShare($share);
@@ -223,6 +224,11 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 			$share->setToken($this->generateToken());
 		}
 
+		$password = $share->getPassword();
+		if ($password !== null && !$share->isPasswordHashed()) {
+			throw new RuntimeException('The password must be hashed already.');
+		}
+
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->insert('share')
 			->setValue('share_type', $qb->createNamedParameter(IShare::TYPE_EMAIL))
@@ -234,7 +240,7 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 			->setValue('uid_initiator', $qb->createNamedParameter($share->getSharedBy()))
 			->setValue('permissions', $qb->createNamedParameter($share->getPermissions()))
 			->setValue('token', $qb->createNamedParameter($share->getToken()))
-			->setValue('password', $qb->createNamedParameter($share->getPassword()))
+			->setValue('password', $qb->createNamedParameter($password))
 			->setValue('password_expiration_time', $qb->createNamedParameter($share->getPasswordExpirationTime(), IQueryBuilder::PARAM_DATETIME_MUTABLE))
 			->setValue('password_by_talk', $qb->createNamedParameter($share->getSendPasswordByTalk(), IQueryBuilder::PARAM_BOOL))
 			->setValue('stime', $qb->createNamedParameter(time()))
@@ -722,6 +728,12 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 			$expiration = \DateTime::createFromInterface($expiration);
 			$expiration->setTimezone(new \DateTimeZone(date_default_timezone_get()));
 		}
+
+		$password = $share->getPassword();
+		if ($password !== null && !$share->isPasswordHashed()) {
+			throw new RuntimeException('The password must be hashed already.');
+		}
+
 		$qb->update('share')
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($share->getId())))
 			->set('item_source', $qb->createNamedParameter($share->getNodeId()))
@@ -730,7 +742,7 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 			->set('permissions', $qb->createNamedParameter($share->getPermissions()))
 			->set('uid_owner', $qb->createNamedParameter($share->getShareOwner()))
 			->set('uid_initiator', $qb->createNamedParameter($share->getSharedBy()))
-			->set('password', $qb->createNamedParameter($share->getPassword()))
+			->set('password', $qb->createNamedParameter($password))
 			->set('password_expiration_time', $qb->createNamedParameter($share->getPasswordExpirationTime(), IQueryBuilder::PARAM_DATETIME_MUTABLE))
 			->set('label', $qb->createNamedParameter($share->getLabel()))
 			->set('password_by_talk', $qb->createNamedParameter($share->getSendPasswordByTalk(), IQueryBuilder::PARAM_BOOL))
@@ -1007,7 +1019,9 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 		$shareTime->setTimestamp((int)$data['stime']);
 		$share->setShareTime($shareTime);
 		$share->setSharedWith($data['share_with'] ?? '');
-		$share->setPassword($data['password']);
+		if (($password = $data['password']) !== null) {
+			$share->setPasswordHash($password);
+		}
 		$passwordExpirationTime = \DateTime::createFromFormat('Y-m-d H:i:s', $data['password_expiration_time'] ?? '');
 		$share->setPasswordExpirationTime($passwordExpirationTime !== false ? $passwordExpirationTime : null);
 		$share->setLabel($data['label'] ?? '');
