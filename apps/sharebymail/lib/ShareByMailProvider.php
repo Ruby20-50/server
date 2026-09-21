@@ -33,7 +33,6 @@ use OCP\Security\ISecureRandom;
 use OCP\Security\PasswordContext;
 use OCP\Share\Exceptions\GenericShareException;
 use OCP\Share\Exceptions\ShareNotFound;
-use OCP\Share\IAttributes;
 use OCP\Share\IManager as IShareManager;
 use OCP\Share\IShare;
 use OCP\Share\IShareProviderWithNotification;
@@ -98,13 +97,9 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 
 		// if the admin enforces a password for all mail shares we create a
 		// random password and send it to the recipient
-		$password = $share->getPassword() ?: '';
-		$passwordEnforced = $this->shareManager->shareApiLinkEnforcePassword();
-		if ($passwordEnforced && empty($password)) {
+		$password = $share->getPassword();
+		if ($this->shareManager->shareApiLinkEnforcePassword() && $password === null) {
 			$password = $this->autoGeneratePassword($share);
-		}
-
-		if (!empty($password)) {
 			$share->setPassword($this->hasher->hash($password));
 		}
 
@@ -116,7 +111,7 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 		// Temporary set the clear password again to send it by mail
 		// This need to be done after the share was created in the database
 		// as the password is hashed in between.
-		if (!empty($password)) {
+		if ($password !== null) {
 			$data['password'] = $password;
 		}
 
@@ -227,24 +222,39 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 		if ($share->getToken() === '') {
 			$share->setToken($this->generateToken());
 		}
-		return $this->addShareToDB(
-			$share->getNodeId(),
-			$share->getNodeType(),
-			$share->getSharedWith(),
-			$share->getSharedBy(),
-			$share->getShareOwner(),
-			$share->getPermissions(),
-			$share->getToken(),
-			$share->getPassword(),
-			$share->getPasswordExpirationTime(),
-			$share->getSendPasswordByTalk(),
-			$share->getHideDownload(),
-			$share->getLabel(),
-			$share->getExpirationDate(),
-			$share->getNote(),
-			$share->getAttributes(),
-			$share->getMailSend(),
-		);
+
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->insert('share')
+			->setValue('share_type', $qb->createNamedParameter(IShare::TYPE_EMAIL))
+			->setValue('item_type', $qb->createNamedParameter($share->getNodeType()))
+			->setValue('item_source', $qb->createNamedParameter($share->getNodeId()))
+			->setValue('file_source', $qb->createNamedParameter($share->getNodeId()))
+			->setValue('share_with', $qb->createNamedParameter($share->getSharedWith()))
+			->setValue('uid_owner', $qb->createNamedParameter($share->getShareOwner()))
+			->setValue('uid_initiator', $qb->createNamedParameter($share->getSharedBy()))
+			->setValue('permissions', $qb->createNamedParameter($share->getPermissions()))
+			->setValue('token', $qb->createNamedParameter($share->getToken()))
+			->setValue('password', $qb->createNamedParameter($share->getPassword()))
+			->setValue('password_expiration_time', $qb->createNamedParameter($share->getPasswordExpirationTime(), IQueryBuilder::PARAM_DATETIME_MUTABLE))
+			->setValue('password_by_talk', $qb->createNamedParameter($share->getSendPasswordByTalk(), IQueryBuilder::PARAM_BOOL))
+			->setValue('stime', $qb->createNamedParameter(time()))
+			->setValue('hide_download', $qb->createNamedParameter((int)$share->getHideDownload(), IQueryBuilder::PARAM_INT))
+			->setValue('label', $qb->createNamedParameter($share->getLabel()))
+			->setValue('note', $qb->createNamedParameter($share->getNote()))
+			->setValue('mail_send', $qb->createNamedParameter((int)$share->getMailSend(), IQueryBuilder::PARAM_INT));
+
+		// set share attributes
+		$shareAttributes = $this->formatShareAttributes($share->getAttributes());
+
+		$qb->setValue('attributes', $qb->createNamedParameter($shareAttributes));
+		if (($expirationTime = $share->getExpirationDate()) !== null) {
+			$expirationTime = \DateTime::createFromInterface($expirationTime);
+			$expirationTime->setTimezone(new \DateTimeZone(date_default_timezone_get()));
+			$qb->setValue('expiration', $qb->createNamedParameter($expirationTime, IQueryBuilder::PARAM_DATETIME_MUTABLE));
+		}
+
+		$qb->executeStatement();
+		return (string)$qb->getLastInsertId();
 	}
 
 	/**
@@ -680,61 +690,6 @@ class ShareByMailProvider extends DefaultShareProvider implements IShareProvider
 		$cursor->closeCursor();
 
 		return $children;
-	}
-
-	/**
-	 * Add share to the database and return the ID
-	 */
-	protected function addShareToDB(
-		?int $itemSource,
-		?string $itemType,
-		?string $shareWith,
-		?string $sharedBy,
-		?string $uidOwner,
-		?int $permissions,
-		?string $token,
-		?string $password,
-		?\DateTimeInterface $passwordExpirationTime,
-		?bool $sendPasswordByTalk,
-		?bool $hideDownload,
-		?string $label,
-		?\DateTimeInterface $expirationTime,
-		?string $note = '',
-		?IAttributes $attributes = null,
-		?bool $mailSend = true,
-	): string {
-		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert('share')
-			->setValue('share_type', $qb->createNamedParameter(IShare::TYPE_EMAIL))
-			->setValue('item_type', $qb->createNamedParameter($itemType))
-			->setValue('item_source', $qb->createNamedParameter($itemSource))
-			->setValue('file_source', $qb->createNamedParameter($itemSource))
-			->setValue('share_with', $qb->createNamedParameter($shareWith))
-			->setValue('uid_owner', $qb->createNamedParameter($uidOwner))
-			->setValue('uid_initiator', $qb->createNamedParameter($sharedBy))
-			->setValue('permissions', $qb->createNamedParameter($permissions))
-			->setValue('token', $qb->createNamedParameter($token))
-			->setValue('password', $qb->createNamedParameter($password))
-			->setValue('password_expiration_time', $qb->createNamedParameter($passwordExpirationTime, IQueryBuilder::PARAM_DATETIME_MUTABLE))
-			->setValue('password_by_talk', $qb->createNamedParameter($sendPasswordByTalk, IQueryBuilder::PARAM_BOOL))
-			->setValue('stime', $qb->createNamedParameter(time()))
-			->setValue('hide_download', $qb->createNamedParameter((int)$hideDownload, IQueryBuilder::PARAM_INT))
-			->setValue('label', $qb->createNamedParameter($label))
-			->setValue('note', $qb->createNamedParameter($note))
-			->setValue('mail_send', $qb->createNamedParameter((int)$mailSend, IQueryBuilder::PARAM_INT));
-
-		// set share attributes
-		$shareAttributes = $this->formatShareAttributes($attributes);
-
-		$qb->setValue('attributes', $qb->createNamedParameter($shareAttributes));
-		if ($expirationTime !== null) {
-			$expirationTime = \DateTime::createFromInterface($expirationTime);
-			$expirationTime->setTimezone(new \DateTimeZone(date_default_timezone_get()));
-			$qb->setValue('expiration', $qb->createNamedParameter($expirationTime, IQueryBuilder::PARAM_DATETIME_MUTABLE));
-		}
-
-		$qb->executeStatement();
-		return (string)$qb->getLastInsertId();
 	}
 
 	/**
