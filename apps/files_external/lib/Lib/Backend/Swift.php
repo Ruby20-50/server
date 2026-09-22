@@ -30,6 +30,7 @@ class Swift extends Backend {
 				(new DefinitionParameter('service_name', $l->t('Service name')))
 					->setFlag(DefinitionParameter::FLAG_OPTIONAL),
 				new DefinitionParameter('region', $l->t('Region')),
+							// TRANSLATORS configure bucket for swift storage
 				new DefinitionParameter('bucket', $l->t('Bucket')),
 				(new DefinitionParameter('timeout', $l->t('Request timeout (seconds)')))
 					->setFlag(DefinitionParameter::FLAG_OPTIONAL),
